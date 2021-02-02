@@ -9,8 +9,8 @@ using Microsoft.Xna.Framework.Input;
 
 namespace TrainCross
 {
-    interface ISprite
+    abstract class Sprite
     {
-        void Draw(SpriteBatch spriteBatch);
+        abstract public void Draw(SpriteBatch spriteBatch);
     }
 }

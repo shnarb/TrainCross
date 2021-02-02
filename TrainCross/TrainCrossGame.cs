@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.Contracts;
+using TrainCross.Utils;
 
 namespace TrainCross
 {
@@ -13,16 +14,20 @@ namespace TrainCross
     /// </summary>
     public class TrainCrossGame : Game
     {
-        private readonly int ScreenWidth = 1920;
-        private readonly int ScreenHeight = 1080;
+        //private readonly int ScreenWidth = 1920;
+        //private readonly int ScreenHeight = 1080;
+        private readonly int ScreenWidth = 800;
+        private readonly int ScreenHeight = 600;
         readonly GraphicsDeviceManager Graphics;
         private SpriteBatch SpriteBatch;
         private Texture2D TrainTexture;
         private Texture2D TrainTrackTexture;
-        private ICollection<ISprite> Sprites;
+        private SpriteFont font;
+        private ICollection<Sprite> Sprites;
         private TrainTrack InProgressTrainTrack;
         private bool IsPreviousStatePressed;
         private Point InProgressTrainTrackOrigin;
+        private SmartFramerate FrameRate;
 
 
         public TrainCrossGame()
@@ -34,9 +39,11 @@ namespace TrainCross
             // Set window dimensions.
             Graphics.PreferredBackBufferWidth = ScreenWidth;
             Graphics.PreferredBackBufferHeight = ScreenHeight;
-            Window.IsBorderless = true;
-            Graphics.IsFullScreen = true;
+            //Window.IsBorderless = true;
+            //Graphics.IsFullScreen = true;
 
+            Graphics.SynchronizeWithVerticalRetrace = false;
+            this.IsFixedTimeStep = false;
             this.IsMouseVisible = true;
         }
 
@@ -48,8 +55,10 @@ namespace TrainCross
         /// </summary>
         protected override void Initialize()
         {
-            Sprites = new List<ISprite>();
+            Sprites = new List<Sprite>();
             IsPreviousStatePressed = false;
+            Mouse.SetCursor(MouseCursor.Crosshair);
+            FrameRate = new SmartFramerate(5);
             base.Initialize();
         }
 
@@ -65,7 +74,7 @@ namespace TrainCross
             // TODO: use this.Content to load your game content here
             TrainTexture = Content.Load<Texture2D>(@"Sprites\TrainModel");
             TrainTrackTexture = Content.Load<Texture2D>(@"Sprites\SimpleTextureSmooth");
-            Mouse.SetCursor(MouseCursor.FromTexture2D(TrainTexture, 0, 0));
+            font = Content.Load<SpriteFont>(@"Fonts\Arial");
         }
 
         /// <summary>
@@ -100,6 +109,7 @@ namespace TrainCross
                     var Rotation = Math.Atan2(DeltaY, DeltaX);
                     InProgressTrainTrack.Length = (int)Math.Sqrt(Math.Pow(DeltaX, 2) + Math.Pow(DeltaY, 2));
                     InProgressTrainTrack.Rotation = (float)Rotation;
+                    InProgressTrainTrack.CurrentCursorPosition = Mouse.GetState().Position;
                 }
                 else
                 {
@@ -118,7 +128,8 @@ namespace TrainCross
                 InProgressTrainTrack = null;
                 IsPreviousStatePressed = false;
             }
-
+            // Update framerate
+            FrameRate.Update(gameTime.ElapsedGameTime.TotalSeconds);
             base.Update(gameTime);
         }
 
@@ -135,7 +146,10 @@ namespace TrainCross
             // Draw sprites.
             SpriteBatch.Begin();
 
-            // Draw temporary train track
+            // Draw framerate.
+            SpriteBatch.DrawString(font, string.Format("{0:0}", FrameRate.Framerate), new Vector2(50, 50), Color.Black);
+
+            // Draw temporary train track.
             if (InProgressTrainTrack != null)
             {
                 InProgressTrainTrack.Draw(SpriteBatch);
@@ -143,8 +157,8 @@ namespace TrainCross
 
             if (Sprites.Count > 0)
             {
-                // Draw placed train tracks
-                foreach (ISprite sprite in Sprites)
+                // Draw placed train tracks.
+                foreach (Sprite sprite in Sprites)
                 {
                     sprite.Draw(SpriteBatch);
                 }
@@ -152,22 +166,6 @@ namespace TrainCross
             SpriteBatch.End();
 
             base.Draw(gameTime);
-        }
-        /// <summary>
-        /// This maps a value from one range to another.
-        /// </summary>
-        /// <param name="val">Value to be remapped.</param>
-        /// <param name="min">Minimum value that 'val' can take.</param>
-        /// <param name="max">Maximum value that 'val' can take.</param>
-        /// <param name="otherMin">Minimum value that 'val' will be mapped to.</param>
-        /// <param name="otherMax">Maximum value that 'val' will be mapped to.</param>
-        /// <returns></returns>
-        private float Remap(float val, float min, float max, float otherMin, float otherMax)
-        {
-            Contract.Requires<ArgumentOutOfRangeException>(val >= min && val <= max,
-                string.Format("Parameter 'val' must be within range of 'min' and 'max'. " +
-                "Recieved val: {0} min: {1} max: {2}", val, min, max));
-            return (val - min) / (max - min) * (otherMax - otherMin) + min;
         }
     }
 }
