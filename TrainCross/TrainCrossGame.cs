@@ -1,8 +1,9 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics.Contracts;
 
 namespace TrainCross
@@ -14,21 +15,29 @@ namespace TrainCross
     {
         private readonly int ScreenWidth = 1920;
         private readonly int ScreenHeight = 1080;
-        GraphicsDeviceManager Graphics;
-        SpriteBatch SpriteBatch;
-
-        Texture2D TrainTexture;
-        Texture2D TrainTrackTexture;
+        readonly GraphicsDeviceManager Graphics;
+        private SpriteBatch SpriteBatch;
+        private Texture2D TrainTexture;
+        private Texture2D TrainTrackTexture;
+        private ICollection<ISprite> Sprites;
+        private TrainTrack InProgressTrainTrack;
+        private bool IsPreviousStatePressed;
+        private Point InProgressTrainTrackOrigin;
 
 
         public TrainCrossGame()
         {
+            // Initialize ContentManager and GraphicsDeviceManager.
             Graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
+
+            // Set window dimensions.
             Graphics.PreferredBackBufferWidth = ScreenWidth;
             Graphics.PreferredBackBufferHeight = ScreenHeight;
-            this.IsMouseVisible = true;
             Window.IsBorderless = true;
+            Graphics.IsFullScreen = true;
+
+            this.IsMouseVisible = true;
         }
 
         /// <summary>
@@ -39,8 +48,8 @@ namespace TrainCross
         /// </summary>
         protected override void Initialize()
         {
-            // TODO: Add your initialization logic here
-
+            Sprites = new List<ISprite>();
+            IsPreviousStatePressed = false;
             base.Initialize();
         }
 
@@ -54,8 +63,9 @@ namespace TrainCross
             SpriteBatch = new SpriteBatch(GraphicsDevice);
 
             // TODO: use this.Content to load your game content here
-            TrainTexture = Content.Load<Texture2D>("TrainModel");
-            TrainTrackTexture = Content.Load<Texture2D>("SimpleTexture");
+            TrainTexture = Content.Load<Texture2D>(@"Sprites\TrainModel");
+            TrainTrackTexture = Content.Load<Texture2D>(@"Sprites\SimpleTextureSmooth");
+            Mouse.SetCursor(MouseCursor.FromTexture2D(TrainTexture, 0, 0));
         }
 
         /// <summary>
@@ -77,16 +87,36 @@ namespace TrainCross
             if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
+            if (Keyboard.GetState().IsKeyDown(Keys.Space))
+                Sprites.Clear();
+
             if (Mouse.GetState().LeftButton == ButtonState.Pressed)
             {
-                trackAngle = (float)Math.Atan2(Mouse.GetState().Y, Mouse.GetState().X);
-                isLeftReleased = false;
+                if (IsPreviousStatePressed)
+                {
+                    var NewMousePosition = Mouse.GetState().Position;
+                    var DeltaX = InProgressTrainTrackOrigin.X - NewMousePosition.X;
+                    var DeltaY = InProgressTrainTrackOrigin.Y - NewMousePosition.Y;
+                    var Rotation = Math.Atan2(DeltaY, DeltaX);
+                    InProgressTrainTrack.Length = (int)Math.Sqrt(Math.Pow(DeltaX, 2) + Math.Pow(DeltaY, 2));
+                    InProgressTrainTrack.Rotation = (float)Rotation;
+                }
+                else
+                {
+                    InProgressTrainTrackOrigin = new Point(Mouse.GetState().X, Mouse.GetState().Y);
+                    InProgressTrainTrack = new TrainTrack(TrainTrackTexture, InProgressTrainTrackOrigin, 0);
+                }
+                IsPreviousStatePressed = true;
             }
 
             if (Mouse.GetState().LeftButton == ButtonState.Released)
             {
-                maxTrackLength = trackLength;
-                isLeftReleased = true;
+                if (IsPreviousStatePressed)
+                {
+                    Sprites.Add(InProgressTrainTrack);
+                }
+                InProgressTrainTrack = null;
+                IsPreviousStatePressed = false;
             }
 
             base.Update(gameTime);
@@ -98,32 +128,45 @@ namespace TrainCross
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Draw(GameTime gameTime)
         {
+
+            // Reset screen.
             GraphicsDevice.Clear(Color.DimGray);
 
-            //Draw Sprites
+            // Draw sprites.
             SpriteBatch.Begin();
 
-            //Draw Tracks
+            // Draw temporary train track
+            if (InProgressTrainTrack != null)
+            {
+                InProgressTrainTrack.Draw(SpriteBatch);
+            }
 
+            if (Sprites.Count > 0)
+            {
+                // Draw placed train tracks
+                foreach (ISprite sprite in Sprites)
+                {
+                    sprite.Draw(SpriteBatch);
+                }
+            }
             SpriteBatch.End();
 
             base.Draw(gameTime);
         }
         /// <summary>
-        /// This maps a value from one range to another
+        /// This maps a value from one range to another.
         /// </summary>
-        /// <param name="val">Value to be remapped</param>
-        /// <param name="min">Minimum value that 'val' can take</param>
-        /// <param name="max">Maximum value that 'val' can take</param>
-        /// <param name="otherMin">Minimum value that 'val' will be mapped to</param>
-        /// <param name="otherMax">Maximum value that 'val' will be mapped to</param>
+        /// <param name="val">Value to be remapped.</param>
+        /// <param name="min">Minimum value that 'val' can take.</param>
+        /// <param name="max">Maximum value that 'val' can take.</param>
+        /// <param name="otherMin">Minimum value that 'val' will be mapped to.</param>
+        /// <param name="otherMax">Maximum value that 'val' will be mapped to.</param>
         /// <returns></returns>
         private float Remap(float val, float min, float max, float otherMin, float otherMax)
         {
             Contract.Requires<ArgumentOutOfRangeException>(val >= min && val <= max,
                 string.Format("Parameter 'val' must be within range of 'min' and 'max'. " +
-                "Recieved val: {0} min: {1} max: {2}",
-                val, min, max));
+                "Recieved val: {0} min: {1} max: {2}", val, min, max));
             return (val - min) / (max - min) * (otherMax - otherMin) + min;
         }
     }
