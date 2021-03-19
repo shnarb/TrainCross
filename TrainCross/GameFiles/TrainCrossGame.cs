@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.Contracts;
+using TrainCross.Sprites;
 using TrainCross.Utils;
 
 namespace TrainCross
@@ -14,20 +15,15 @@ namespace TrainCross
     /// </summary>
     public class TrainCrossGame : Game
     {
-        //private readonly int ScreenWidth = 1920;
-        //private readonly int ScreenHeight = 1080;
-        private readonly int ScreenWidth = 800;
-        private readonly int ScreenHeight = 600;
+        private const int ScreenWidth = 800;
+        private const int ScreenHeight = 600;
         readonly GraphicsDeviceManager Graphics;
         private SpriteBatch SpriteBatch;
-        private Texture2D TrainTexture;
-        private Texture2D TrainTrackTexture;
-        private SpriteFont font;
-        private ICollection<Sprite> Sprites;
-        private TrainTrack InProgressTrainTrack;
-        private bool IsPreviousStatePressed;
-        private Point InProgressTrainTrackOrigin;
-        private SmartFramerate FrameRate;
+        private Texture2D _trainTrackTexture;
+        private SpriteFont _font;
+        private IList<Sprite> _finished_trains;
+        private IList<Sprite> _in_progress_trains;
+        private SmartFramerate _frameRate;
 
 
         public TrainCrossGame()
@@ -39,6 +35,8 @@ namespace TrainCross
             // Set window dimensions.
             Graphics.PreferredBackBufferWidth = ScreenWidth;
             Graphics.PreferredBackBufferHeight = ScreenHeight;
+            // In order to make the game borderless and fullscreen uncomment next 
+            // two lines.
             //Window.IsBorderless = true;
             //Graphics.IsFullScreen = true;
 
@@ -55,10 +53,9 @@ namespace TrainCross
         /// </summary>
         protected override void Initialize()
         {
-            Sprites = new List<Sprite>();
-            IsPreviousStatePressed = false;
             Mouse.SetCursor(MouseCursor.Crosshair);
-            FrameRate = new SmartFramerate(5);
+            _frameRate = new SmartFramerate(5);
+
             base.Initialize();
         }
 
@@ -71,10 +68,12 @@ namespace TrainCross
             // Create a new SpriteBatch, which can be used to draw textures.
             SpriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // TODO: use this.Content to load your game content here
-            TrainTexture = Content.Load<Texture2D>(@"Sprites\TrainModel");
-            TrainTrackTexture = Content.Load<Texture2D>(@"Sprites\SimpleTextureSmooth");
-            font = Content.Load<SpriteFont>(@"Fonts\Arial");
+            _trainTrackTexture = Content.Load<Texture2D>(@"Sprites\SimpleTextureSmooth");
+            _font = Content.Load<SpriteFont>(@"Fonts\Arial");
+            _finished_trains = new List<Sprite>();
+            _in_progress_trains = new List<Sprite>() { new TrainTrackInProgress(_trainTrackTexture) };
+
+            base.LoadContent();
         }
 
         /// <summary>
@@ -97,39 +96,24 @@ namespace TrainCross
                 Exit();
 
             if (Keyboard.GetState().IsKeyDown(Keys.Space))
-                Sprites.Clear();
-
-            if (Mouse.GetState().LeftButton == ButtonState.Pressed)
             {
-                if (IsPreviousStatePressed)
-                {
-                    var NewMousePosition = Mouse.GetState().Position;
-                    var DeltaX = InProgressTrainTrackOrigin.X - NewMousePosition.X;
-                    var DeltaY = InProgressTrainTrackOrigin.Y - NewMousePosition.Y;
-                    var Rotation = Math.Atan2(DeltaY, DeltaX);
-                    InProgressTrainTrack.Length = (int)Math.Sqrt(Math.Pow(DeltaX, 2) + Math.Pow(DeltaY, 2));
-                    InProgressTrainTrack.Rotation = (float)Rotation;
-                    InProgressTrainTrack.CurrentCursorPosition = Mouse.GetState().Position;
-                }
-                else
-                {
-                    InProgressTrainTrackOrigin = new Point(Mouse.GetState().X, Mouse.GetState().Y);
-                    InProgressTrainTrack = new TrainTrack(TrainTrackTexture, InProgressTrainTrackOrigin, 0);
-                }
-                IsPreviousStatePressed = true;
+                _finished_trains.Clear();
             }
 
-            if (Mouse.GetState().LeftButton == ButtonState.Released)
+
+            // Draw placed train tracks.
+            foreach (Sprite sprite in new List<Sprite>(_finished_trains))
             {
-                if (IsPreviousStatePressed)
-                {
-                    Sprites.Add(InProgressTrainTrack);
-                }
-                InProgressTrainTrack = null;
-                IsPreviousStatePressed = false;
+                sprite.Update(gameTime, _finished_trains);
             }
-            // Update framerate
-            FrameRate.Update(gameTime.ElapsedGameTime.TotalSeconds);
+
+            foreach (Sprite sprite in new List<Sprite>(_in_progress_trains))
+            {
+                sprite.Update(gameTime, _finished_trains);
+            }
+
+            _frameRate.Update(gameTime.ElapsedGameTime.TotalSeconds);
+
             base.Update(gameTime);
         }
 
@@ -145,27 +129,27 @@ namespace TrainCross
 
             // Draw sprites.
             SpriteBatch.Begin();
-
-            // Draw framerate.
-            SpriteBatch.DrawString(font, string.Format("{0:0}", FrameRate.Framerate), new Vector2(50, 50), Color.Black);
-
-            // Draw temporary train track.
-            if (InProgressTrainTrack != null)
+            // Draw placed train tracks.
+            foreach (Sprite sprite in _finished_trains)
             {
-                InProgressTrainTrack.Draw(SpriteBatch);
+                sprite.Draw(SpriteBatch);
             }
-
-            if (Sprites.Count > 0)
+            foreach(Sprite sprite in _in_progress_trains)
             {
-                // Draw placed train tracks.
-                foreach (Sprite sprite in Sprites)
-                {
-                    sprite.Draw(SpriteBatch);
-                }
+                sprite.Draw(SpriteBatch);
             }
             SpriteBatch.End();
 
+            DrawFrameRate();
+
             base.Draw(gameTime);
+        }
+
+        private void DrawFrameRate()
+        {
+            SpriteBatch.Begin();
+            SpriteBatch.DrawString(_font, $"{_frameRate.Framerate:0}", new Vector2(50, 50), Color.Black);
+            SpriteBatch.End();
         }
     }
 }
